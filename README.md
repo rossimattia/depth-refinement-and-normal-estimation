@@ -43,7 +43,7 @@ easily by calling the function `refine` in `refinement.py`.
 The following command (new lines must be replaced with spaces) provides and example of usage
 of the command-line interface:
     
-    python refine
+    python refine.py
     --image <input_image_path>
     --depth <input_depth_map_path>
     --confidence <input_confidence_map_path>
@@ -72,7 +72,7 @@ of the command-line interface:
 The above command performs a refinement of the input depth map adopting a multi-scale refinement
 with 4 scales.
 As a consequence, the scale-dependent parameters require 4 input values each.
-For more details on the software input parameters, please use the help `python ./refine --help`.  
+For more details on the software input parameters, please use the help `python refine.py --help`.  
 Finally, please note that the input depth and confidence maps must be in binary format (the same used in
 [COLMAP](https://github.com/colmap/colmap)).
 This is also the same format used to save the refined depth map and the corresponding normal map
