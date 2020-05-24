@@ -508,8 +508,8 @@ def space2plane_normal(depth: np.array, normal: np.array,
     Args:
         depth: depth map, arranged as an `(H, W)` array.
         normal: normal map, arranged as an `(H, W, 3)` array. Normals must be unitary.
-        focal: tuple containing the (pinhole) camera focal length along the `x` and 'y' axes, respectively.
-        center: `x` and `y` coordinates of the center of (pinhole) camera center of projection.
+        focal: tuple containing the camera focal lengths `(f_x, f_y)`.
+        center: tuple containing the camera principal point coordinates `(c_x, c_y)`.
 
     Returns:
         The 2D normals associated to the input 3D normals, arranged as an `(H, W, 2)` array.
@@ -593,8 +593,8 @@ def plane2space_normal(depth: np.array, normal: np.array,
     Args:
         depth: depth map, arranged as an `(H, W)` array.
         normal: normal map, arranged as an `(H, W, 2)` array.
-        focal: tuple containing the (pinhole) camera focal length along the `x` and 'y' axes, respectively.
-        center: `x` and `y` coordinates of the center of (pinhole) camera center of projection.
+        focal: tuple containing the camera focal lengths `(f_x, f_y)`.
+        center: tuple containing the camera principal point coordinates `(c_x, c_y)`.
 
     Returns:
         The 3D normals associated to the input 2D normals, arranged as an `(H, W, 3)` array.
@@ -725,8 +725,8 @@ def depth2normal(depth: np.array,
 
     Args:
         depth: depth map, arranged as an `(H, W)` array.
-        focal: tuple containing the (pinhole) camera focal length along the `x` and 'y' axes, respectively.
-        center: `x` and `y` coordinates of the center of (pinhole) camera center of projection.
+        focal: tuple containing the camera focal lengths `(f_x, f_y)`.
+        center: tuple containing the camera principal point coordinates `(c_x, c_y)`.
         filter_size: height (and width) of the filters.
         filter_sigma: standard deviation (in pixels) of the Gaussian filter underneath the derivative filters.
 
@@ -761,8 +761,8 @@ def check_normal(depth: np.array, normal: np.array,
     Args:
         depth: depth map, arranged as an `(H, W)` array.
         normal: normal map, arranged as an `(H, W, 3)` array. Normals must be unitary.
-        focal: tuple containing the (pinhole) camera focal length along the `x` and 'y' axes, respectively.
-        center: `x` and `y` coordinates of the center of (pinhole) camera center of projection.
+        focal: tuple containing the camera focal lengths `(f_x, f_y)`.
+        center: tuple containing the camera principal point coordinates `(c_x, c_y)`.
 
     Returns:
         The inner product, arranged as an `(H, w)` array, between the 3D point associated to each pixel and the
