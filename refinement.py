@@ -196,7 +196,7 @@ def refine_depth(image: np.array, depth: np.array, depth_range: Tuple[float, flo
     - sigma_intensity: color difference standard deviation for patch comparison in the graph construction.
     - sigma_spatial: euclidean distance standard deviation for patch comparison in the graph construction.
     - degree_max: maximum number of per pixel neighbors in the graph.
-    - regularization: regularization type (0 for NLTGV, 4 for our regularization).
+    - regularization: regularization type (0 for NLTGV, 1 for our regularization).
 
     The `opt_param` input parameter contains a list of dictionaries, one for each scale. Each dictionary must contain
     the following keys:
@@ -409,6 +409,27 @@ def refine(image: np.array, depth: np.array, depth_range: Tuple[float, float],
     Returns:
         The refined depth map and the corresponding normal map.
     """
+
+    # Check that the input maps have the same height and width of the input reference image.
+    height = image.shape[0]
+    width = image.shape[1]
+    assert depth.shape == (height, width),\
+        'Input depth map size not compatible with the reference image one.'
+    if depth_confidence is not None:
+        assert depth_confidence.shape == (height, width),\
+            'Input depth map confidence size not compatible with the reference image one.'
+    if normal is not None:
+        assert normal.shape == (height, width, 3),\
+            'Input normal map size not compatible with the reference image one.'
+    if depth_init is not None:
+        assert depth_init.shape == (height, width),\
+            'Input initial depth map size not compatible with the reference image one.'
+    if normal_init is not None:
+        assert normal_init.shape == (height, width, 3),\
+            'Input initial normal map size not compatible with the reference image one.'
+    if depth_gt is not None:
+        assert depth_gt.shape == (height, width),\
+            'Ground truth depth size not compatible with the reference image one.'
 
     # Check the depth map data type.
     if depth.dtype == np.float32:

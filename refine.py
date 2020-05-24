@@ -28,7 +28,7 @@ import os
 import numpy as np
 from cv2 import imread
 from iofuns import read_depth_map, read_normal_map, write_bin_file
-from misc import depth_percentage_error
+from misc import resize_map, depth_percentage_error
 from refinement import refine_depth
 from logger import Logger
 import torch.optim
@@ -74,10 +74,10 @@ def read_param() -> argparse.Namespace:
     # Camera parameters.
     parser.add_argument(
         '--cam_focal', type=float, nargs=2, required=True,
-        help='camera focal length (f_x, f_y)')
+        help='camera focal lengths (f_x, f_y)')
     parser.add_argument(
         '--cam_center', type=float, nargs=2, required=True,
-        help='camera center of projection (c_x, c_y)')
+        help='camera principal point coordinates (c_x, c_y)')
 
     # Depth range.
     parser.add_argument(
@@ -123,8 +123,8 @@ def read_param() -> argparse.Namespace:
 
     # Regularization.
     parser.add_argument(
-        '--regularization', type=int, choices=[1], default=1,
-        help='regularization type (only regularization of type 1 is available at the moment)')
+        '--regularization', type=int, choices=[0, 1], default=1,
+        help='regularization type (0 for NLTGV, 1 for our regularization)')
 
     # =========================================== SCALE-DEPENDENT PARAMETERS ===========================================
 
@@ -194,9 +194,9 @@ def read_param() -> argparse.Namespace:
 
     # Check `lambda_depth_consistency`.
     if isinstance(param.lambda_depth_consistency, list):
-        assert(len(param.lambda_depth_consistency) == param.scale_nb)
+        assert (len(param.lambda_depth_consistency) == param.scale_nb)
     else:
-        param.lambda_depth_consistency = [param.lambda_depth_consistency]*param.scale_nb
+        param.lambda_depth_consistency = [param.lambda_depth_consistency] * param.scale_nb
 
     # Check `lambda_normal_consistency`.
     if isinstance(param.lambda_normal_consistency, list):
@@ -312,7 +312,6 @@ def print_param(param: argparse.Namespace) -> None:
 
 
 def main():
-
     # Read the input parameters.
     param = read_param()
 
@@ -333,7 +332,6 @@ def main():
     loss_param = [None] * param.scale_nb
     opt_param = [None] * param.scale_nb
     for i in range(param.scale_nb):
-
         loss_param[i] = {
             'lambda_depth_consistency': param.lambda_depth_consistency[i],
             'lambda_normal_consistency': param.lambda_normal_consistency[i],
@@ -386,12 +384,12 @@ def main():
 
     # Clip the valid entries of the MVS depth map to `[param.depth_min, param.depth_max]`.
     mask = (depth > 0) & (depth < float('inf'))
-    depth[~mask] = 0    # Non valid pixels are set to zero.
-    depth[mask] = np.clip(depth[mask], param.depth_min, param.depth_max)    # Valid pixels are clipped.
+    depth[~mask] = 0  # Non valid pixels are set to zero.
+    depth[mask] = np.clip(depth[mask], param.depth_min, param.depth_max)  # Valid pixels are clipped.
 
     ############################################ NOISY/INCOMPLETE NORMAL MAP ###########################################
 
-    # Read the noisy/incomplete normal map and use them for normal map initialization.
+    # Read the noisy/incomplete normal map.
     normal = read_normal_map(param.normal, 'COLMAP')
     if normal is None:
         print('WARNING: The noisy/incomplete normal map could not be loaded.')
@@ -399,16 +397,25 @@ def main():
         # Set to zero all the 3D normals without a corresponding depth value.
         normal[~mask] = 0
 
+    # We do not care about normal having unitary norm at this stage.
+
     ################################################## CONFIDENCE MAP ##################################################
 
     # Read the confidence map associated to the noisy/incomplete depth map.
     depth_confidence = read_depth_map(param.confidence, 'COLMAP').astype(param.precision)
 
+    # Check the confidence map.
+    assert (np.min(depth_confidence) >= 0) and (np.max(depth_confidence) <= 1), \
+        'Depth map confidence entries must be in [0, 1].'
+
     # Make the confidence binary.
     if param.confidence_threshold is not None:
-        mask_confidence = depth_confidence < param.confidence_threshold
-        depth_confidence = np.ones_like(depth_confidence)
-        depth_confidence[mask_confidence] = 0
+        if (param.confidence_threshold >= 0) and (param.confidence_threshold <= 1):
+            mask_confidence = depth_confidence < param.confidence_threshold
+            depth_confidence = np.ones_like(depth_confidence)
+            depth_confidence[mask_confidence] = 0
+        else:
+            print('WARNING: the specified confidence threshold is outside [0, 1] therefore it will be ignored.')
 
     ############################################## GROUND TRUTH DEPTH MAP ##############################################
 
@@ -418,6 +425,34 @@ def main():
         depth_gt = read_depth_map(param.depth_gt, 'COLMAP').astype(param.precision)
         if depth_gt is None:
             raise FileNotFoundError('The ground truth depth map could not be loaded.')
+
+    ############################################ ADJUST REFERENCE IMAGE SIZE ###########################################
+
+    # If the reference image size differs from the noisy/incomplete depth map one, then the image is resized.
+    # Note that, since the camera parameters are associated to the reference image, the camera parameters must be
+    # adjusted accordingly, if the reference image is resized.
+    height = depth.shape[0]
+    width = depth.shape[1]
+    if (image.shape[0] != height) or (image.shape[1] != width):
+        x_ratio = float(height) / float(image.shape[0])
+        y_ratio = float(width) / float(image.shape[1])
+        camera_param['f_x'] = camera_param['f_x'] * x_ratio
+        camera_param['f_y'] = camera_param['f_y'] * y_ratio
+        camera_param['c_x'] = camera_param['c_x'] * x_ratio
+        camera_param['c_y'] = camera_param['c_y'] * y_ratio
+        image = resize_map(image, (height, width), order=1)
+        print('WARNING: the reference image has been resized in order to match the input depth map height and width.')
+
+    # The other maps must have the same height and width of the noisy/incomplete depth map. No resizing for them.
+    if normal is not None:
+        assert normal.shape == (height, width, 3), \
+            'Input normal map size not compatible with the reference image one.'
+    if depth_confidence is not None:
+        assert depth_confidence.shape == (height, width), \
+            'Input depth map confidence size not compatible with the reference image one.'
+    if depth_gt is not None:
+        assert depth_gt.shape == (height, width), \
+            'Ground truth depth size not compatible with the reference image one.'
 
     ####################################################################################################################
     #################################################### REFINEMENT ####################################################
@@ -435,7 +470,7 @@ def main():
         depth_gt=depth_gt,
         logger=logger,
         device=device)
-    
+
     # Check the processing time.
     time_elapsed = time.time() - time_start
     minute_elapsed = math.floor(time_elapsed / 60)
