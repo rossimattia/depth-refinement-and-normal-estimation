@@ -742,7 +742,7 @@ def depth2normal(depth: np.array,
     # The x and y derivative filters are encoded in the real and imaginary parts of the filter.
 
     # Compute the inverse depth.
-    depth_inv = depth2depth_inv(depth, 'inverse_depth')
+    depth_inv = depth2depth_inv(depth)
 
     # Compute the inverse depth gradient.
     depth_inv_grad = convolve2d(depth_inv, grad_filter, mode='same', boundary='symm')
